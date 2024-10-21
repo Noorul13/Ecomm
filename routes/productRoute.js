@@ -81,6 +81,42 @@ router.delete('/deleteproduct/:id',proctected, async (req, res) => {
   }
 });
 
+// router.get('/products/nearby', async (req, res) => {
+//   const { latitude, longitude } = req.body;
+
+//   // Validate input
+//   if (!latitude || !longitude) {
+//       return res.status(400).json({ message: 'Latitude and longitude are required' });
+//   }
+
+//   try {
+//       // Find warehouses within 50 km
+//       const warehouses = await Warehouse.find({
+//           geoCoordinates: {
+//               $near: {
+//                   $geometry: {
+//                       type: 'Point',
+//                       coordinates: [parseFloat(longitude), parseFloat(latitude)], // [longitude, latitude]
+//                   },
+//                   $maxDistance: 50000, // 50 km in meters
+//               },
+//           },
+//       });
+
+//       // Extract warehouse IDs
+//       const warehouseIds = warehouses.map(warehouse => warehouse._id);
+
+//       // Find products associated with these warehouses
+//       const products = await Product.find({ warehouseId: { $in: warehouseIds } }).populate('warehouseId');
+
+//       return res.status(200).json(products);
+//   } catch (error) {
+//       console.error('Error fetching nearby products:', error);
+//       return res.status(500).json({ message: 'Error fetching products', error: error.message });
+//   }
+// });
+
+
 router.get('/products/nearby', async (req, res) => {
   const { latitude, longitude } = req.body;
 
@@ -90,18 +126,21 @@ router.get('/products/nearby', async (req, res) => {
   }
 
   try {
-      // Find warehouses within 50 km
-      const warehouses = await Warehouse.find({
-          geoCoordinates: {
-              $near: {
-                  $geometry: {
+      // First, find warehouses within 50 km
+      const warehouses = await Warehouse.aggregate([
+          {
+              $geoNear: {
+                  near: {
                       type: 'Point',
                       coordinates: [parseFloat(longitude), parseFloat(latitude)], // [longitude, latitude]
                   },
-                  $maxDistance: 50000, // 50 km in meters
-              },
-          },
-      });
+                  distanceField: 'distance', // Field to store the distance
+                  maxDistance: 50000, // 50 km in meters
+                  spherical: true,
+                  query: { 'geoCoordinates': { $exists: true } } // Ensure the warehouse has geoCoordinates
+              }
+          }
+      ]);
 
       // Extract warehouse IDs
       const warehouseIds = warehouses.map(warehouse => warehouse._id);
@@ -115,6 +154,5 @@ router.get('/products/nearby', async (req, res) => {
       return res.status(500).json({ message: 'Error fetching products', error: error.message });
   }
 });
-
 
 module.exports = router;
